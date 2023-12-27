@@ -12,7 +12,7 @@ import torch.nn.functional as F
 import torchvision
 
 from ultralytics.utils import LOGGER
-
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 class Profile(contextlib.ContextDecorator):
     """
@@ -127,6 +127,23 @@ def make_divisible(x, divisor):
         divisor = int(divisor.max())  # to int
     return math.ceil(x / divisor) * divisor
 
+def get_pos_list(x):
+    pos_list = []
+    cls_idx = 0
+    l = 0
+    for i, _x in enumerate(x):
+        if round(_x.item()) == cls_idx:
+            continue
+        pos_list.append((l, i))
+        cls_idx = round(_x.item())
+        l = i
+    pos_list.append((l, x.shape[0]))
+    return pos_list
+
+def cls_nms(x, l, r, i_list, iou_thres):
+    boxes, scores = x[l:r, :4], x[l:r, 4]
+    _i = torchvision.ops.nms(boxes, scores, iou_thres)
+    i_list += [i.item() + l for i in _i]
 
 def non_max_suppression(
         prediction,
@@ -233,10 +250,38 @@ def non_max_suppression(
             x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence and remove excess boxes
 
         # Batched NMS
+        t2 = time.time()
         c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
         boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
         i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
         i = i[:max_det]  # limit detections
+        print('orign time: {:.9f}'.format(time.time() - t2))
+        print(i.shape, x[i])
+        if agnostic:
+            boxes, scores = x[:, :4], x[:, 4]
+            i = torchvision.ops.nms(boxes, scores, iou_thres)
+            i = i[:max_det]
+        else:
+            t2 = time.time()
+            x = x[x[:, 5].argsort()]
+            print('tran time: {:.9f}'.format(time.time() - t2))
+            t2 = time.time()
+            pos_list = get_pos_list(x[:, 5])
+            i_list = []
+            pool = ThreadPoolExecutor(128)
+            task_list = []
+            print('pre time: {:.9f}'.format(time.time() - t2))
+            t2 = time.time()
+            for l, r in pos_list:
+                task_list.append(pool.submit(cls_nms, x, l, r, i_list, iou_thres))
+                # cls_nms(x, l, r, i_list, iou_thres)
+            wait(task_list, timeout=None, return_when=ALL_COMPLETED)
+            print('main time: {:.9f}'.format(time.time() - t2))
+            t2 = time.time()
+            i_list.sort(key=lambda i: x[i][4].item(), reverse=True)
+            i = torch.tensor(i_list[:max_det])
+            print('post time: {:.9f}'.format(time.time() - t2))
+            print(i.shape, x[i])
 
         # # Experimental
         # merge = False  # use merge-NMS
@@ -254,7 +299,8 @@ def non_max_suppression(
         if (time.time() - t) > time_limit:
             LOGGER.warning(f'WARNING ⚠️ NMS time limit {time_limit:.3f}s exceeded')
             break  # time limit exceeded
-
+    # print('nms time: {:.9f}'.format(sum))
+    # print('tot time: {:.9f}'.format(time.time() - t))
     return output
 
 
