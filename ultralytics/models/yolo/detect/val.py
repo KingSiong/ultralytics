@@ -76,9 +76,10 @@ class DetectionValidator(BaseValidator):
         """Return a formatted string summarizing class metrics of YOLO model."""
         return ('%22s' + '%11s' * 6) % ('Class', 'Images', 'Instances', 'Box(P', 'R', 'mAP50', 'mAP50-95)')
 
-    def postprocess(self, preds):
+    def postprocess(self, preds, batch_i):
         """Apply Non-maximum suppression to prediction outputs."""
-        return ops.non_max_suppression(preds,
+        return ops.non_max_suppression(batch_i, 
+                                       preds,
                                        self.args.conf,
                                        self.args.iou,
                                        labels=self.lb,

@@ -129,6 +129,7 @@ def make_divisible(x, divisor):
 
 
 def non_max_suppression(
+        batch_i,
         prediction,
         conf_thres=0.25,
         iou_thres=0.45,
@@ -235,8 +236,32 @@ def non_max_suppression(
         # Batched NMS
         c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
         boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
-        i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+        # i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+        # i = i[:max_det]  # limit detections
+
+        # print(scores)
+        # file_path = '/home/sjs/NMS_Research/FasterNMS/data/nms_yolov8m_gpu'
+        # file_name = str(batch_i) + '_' + str(xi)
+        # with open(file_path + '/' + file_name, 'w') as file:
+        #     for i, _line in enumerate(boxes):
+        #         for _x in _line:
+        #             file.write(str(_x.item()))
+        #             file.write(' ')
+        #         file.write(str(scores[i].item()))
+        #         file.write('\n')
+
+        input_file_path = '/home/sjs/NMS_Research/FasterNMS/data/nms_yolov8m_output_SoftNMS'
+        input_file_name = str(batch_i) + '_' + str(xi)
+        i_list = []
+        
+        with open(input_file_path + '/' + input_file_name) as file:
+            for in_i in file:
+                i_list.append(int(in_i))
+        i = torch.tensor(i_list)
+
+        # i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
         i = i[:max_det]  # limit detections
+        # print(input_file_name, i)
 
         # # Experimental
         # merge = False  # use merge-NMS
