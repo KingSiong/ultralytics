@@ -283,7 +283,7 @@ def check_font(font='Arial.ttf'):
         return matches[0]
 
     # Download to USER_CONFIG_DIR if missing
-    url = f'https://ultralytics.com/assets/{name}'
+    url = f'file:///home/sl/nms_research/ultralytics/Arial.ttf'
     if downloads.is_url(url):
         downloads.safe_download(url=url, file=file)
         return file
