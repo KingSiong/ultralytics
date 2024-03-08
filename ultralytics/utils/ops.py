@@ -240,7 +240,7 @@ def non_max_suppression(
         # i = i[:max_det]  # limit detections
 
         # print(scores)
-        # file_path = '/data02/sl/nms_data/nms_yolov8m_gpu'
+        # file_path = '/data02/sl/nms_data/nms_yolov8n_crowdhuman_gpu'
         # file_name = str(batch_i) + '_' + str(xi)
         # with open(file_path + '/' + file_name, 'w') as file:
         #     for i, _line in enumerate(boxes):
@@ -250,7 +250,7 @@ def non_max_suppression(
         #         file.write(str(scores[i].item()))
         #         file.write('\n')
 
-        input_file_path = '../FasterNMS/result/nms_yolov8m_output_SoftNMS'
+        input_file_path = '../FasterNMS/result/nms_yolov8n_crowdhuman_output_GreedyNMS'
         input_file_name = str(batch_i) + '_' + str(xi)
         i_list = []
         
