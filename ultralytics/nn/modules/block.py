@@ -252,6 +252,19 @@ class RepC3(nn.Module):
     def forward(self, x):
         """Forward pass of RT-DETR neck layer."""
         return self.cv3(self.m(self.cv1(x)) + self.cv2(x))
+    
+class RepBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, n=1, block=RepConv):
+        super().__init__()
+
+        self.conv1 = block(in_channels, out_channels)
+        self.block = nn.Sequential(*(block(out_channels, out_channels) for _ in range(n - 1))) if n > 1 else None
+
+    def forward(self, x):
+        x = self.conv1(x)
+        if self.block is not None:
+            x = self.block(x)
+        return x
 
 
 class C3TR(C3):

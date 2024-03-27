@@ -9,7 +9,7 @@ import torch.nn as nn
 
 from ultralytics.nn.modules import (AIFI, C1, C2, C3, C3TR, SPP, SPPF, Bottleneck, BottleneckCSP, C2f, C3Ghost, C3x,
                                     Classify, Concat, Conv, Conv2, ConvTranspose, Detect, DWConv, DWConvTranspose2d,
-                                    Focus, GhostBottleneck, GhostConv, HGBlock, HGStem, Pose, RepC3, RepConv,
+                                    Focus, GhostBottleneck, GhostConv, HGBlock, HGStem, Pose, RepC3, RepBlock, RepConv,
                                     ResNetLayer, RTDETRDecoder, Segment)
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -192,8 +192,18 @@ class BaseModel(nn.Module):
         """
         model = weights['model'] if isinstance(weights, dict) else weights  # torchvision models are not dicts
         csd = model.float().state_dict()  # checkpoint state_dict as FP32
+        # print('csd')
+        # for k, v in csd.items():
+        #     print(k, v.shape)
+        # print('')
+        # print('self.state_dict')
+        # for k, v in self.state_dict().items():
+        #     print(k, v.shape)
+        # print('')
         csd = intersect_dicts(csd, self.state_dict())  # intersect
-        self.load_state_dict(csd, strict=False)  # load
+        missing_keys, unexpected_keys = self.load_state_dict(csd, strict=False)  # load
+        print('missing keys:', missing_keys)
+        print('unexpected keys:', unexpected_keys)
         if verbose:
             LOGGER.info(f'Transferred {len(csd)}/{len(self.model.state_dict())} items from pretrained weights')
 
@@ -683,13 +693,13 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
 
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         if m in (Classify, Conv, ConvTranspose, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, Focus,
-                 BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x, RepC3):
+                 BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x, RepC3, RepConv, RepBlock):
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
 
             args = [c1, c2, *args[1:]]
-            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3):
+            if m in (BottleneckCSP, C1, C2, C2f, C3, C3TR, C3Ghost, C3x, RepC3, RepBlock):
                 args.insert(2, n)  # number of repeats
                 n = 1
         elif m is AIFI:
@@ -739,7 +749,7 @@ def yaml_model_load(path):
         LOGGER.warning(f'WARNING ⚠️ Ultralytics YOLO P6 models now use -p6 suffix. Renaming {path.stem} to {new_stem}.')
         path = path.with_name(new_stem + path.suffix)
 
-    unified_path = re.sub(r'(\d+)([nslmx])(.+)?$', r'\1\3', str(path))  # i.e. yolov8x.yaml -> yolov8.yaml
+    unified_path = re.sub(r'([(\d+)(xjtu)])([nslmx])(.+)?$', r'\1\3', str(path))  # i.e. yolov8x.yaml -> yolov8.yaml
     yaml_file = check_yaml(unified_path, hard=False) or check_yaml(path)
     d = yaml_load(yaml_file)  # model dict
     d['scale'] = guess_model_scale(path)
@@ -761,7 +771,7 @@ def guess_model_scale(model_path):
     """
     with contextlib.suppress(AttributeError):
         import re
-        return re.search(r'yolov\d+([nslmx])', Path(model_path).stem).group(1)  # n, s, m, l, or x
+        return re.search(r'[(yolov\d)(xjtu)]+([nslmx])', Path(model_path).stem).group(1)  # n, s, m, l, or x
     return ''
 
 
